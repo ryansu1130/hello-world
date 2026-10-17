@@ -1,0 +1,101 @@
+name: Build and publish Windows release
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - version.json
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-release:
+    runs-on: windows-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Check out release repository
+        uses: actions/checkout@v4
+
+      - name: Read release version
+        shell: pwsh
+        run: |
+          $v = (Get-Content version.json -Raw | ConvertFrom-Json).version
+          if ($v -notmatch '^\d+\.\d+\.\d+$') { throw "Invalid version.json version: $v" }
+          "VERSION=$v" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Reconstruct source bundle
+        shell: pwsh
+        run: |
+          $manifest = Get-Content source_bundle\manifest.json -Raw | ConvertFrom-Json
+          $joined = ""
+          Get-ChildItem source_bundle\part*.b64 | Sort-Object Name | ForEach-Object {
+            $joined += (Get-Content $_.FullName -Raw)
+          }
+          $bytes = [Convert]::FromBase64String($joined)
+          $zip = Join-Path $env:RUNNER_TEMP "AhPaTaTracker-source.zip"
+          [IO.File]::WriteAllBytes($zip, $bytes)
+          $actual = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
+          if ($actual -ne $manifest.sha256.ToLower()) { throw "Source bundle SHA-256 mismatch" }
+          New-Item -ItemType Directory -Force -Path src | Out-Null
+          Expand-Archive -Path $zip -DestinationPath src -Force
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: src/requirements.txt
+
+      - name: Install dependencies
+        working-directory: src
+        run: python -m pip install -r requirements.txt
+
+      - name: Run offline tests
+        working-directory: src
+        run: python -m unittest discover -s tests -p "test_*.py" -v
+
+      - name: Run Qt smoke test
+        working-directory: src
+        run: python tests/gui_smoke.py
+        env:
+          QT_QPA_PLATFORM: offscreen
+
+      - name: Build Windows EXE
+        working-directory: src
+        shell: pwsh
+        run: |
+          python -m PyInstaller --noconfirm --clean --onefile --windowed `
+            --exclude-module PySide6.QtWebEngineCore `
+            --exclude-module PySide6.QtWebEngineWidgets `
+            --collect-all keyring `
+            --icon="app_icon.ico" `
+            --add-data "app_icon.ico;." `
+            --name AhPaTaTracker AppleOrderTracker.py
+
+      - name: Generate SHA-256
+        working-directory: src
+        shell: pwsh
+        run: |
+          $hash = (Get-FileHash "dist\AhPaTaTracker.exe" -Algorithm SHA256).Hash.ToLower()
+          "$hash  AhPaTaTracker.exe" | Out-File "dist\AhPaTaTracker.exe.sha256" -Encoding ascii -NoNewline
+
+      - name: Publish stable GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "v$env:VERSION"
+          gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release delete $tag --repo $env:GITHUB_REPOSITORY --cleanup-tag --yes
+          }
+          gh release create $tag `
+            "src\dist\AhPaTaTracker.exe" `
+            "src\dist\AhPaTaTracker.exe.sha256" `
+            --repo $env:GITHUB_REPOSITORY `
+            --target master `
+            --title "Ah Pa Ta Tracker v$env:VERSION" `
+            --notes-file release_notes.md
