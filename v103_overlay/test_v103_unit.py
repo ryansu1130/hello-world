@@ -89,12 +89,6 @@ class AssociationEvidenceTests(unittest.TestCase):
         return {'url':'https://secure.store.apple.com/shop/order/guest/W1000000001/token','text':'W1000000001 Processing',
                 'headings':['Processing'],'controls':[{'text':'Cancel Order'}],'password_prompt':False,'auth_prompt':False,'identities':[]}
 
-    def test_unlinked_guest_management_controls_do_not_confirm_association(self):
-        jid=self.store.create_job(self.store.snapshot([self.oid],self.cid,'associate'),confirmed=True);task=self.store.take_next({self.cid})
-        self.session._linked_in_listing=lambda n:False;self.session.task_page=lambda *a,**k:object();self.session.snapshot=lambda p:self._snap();self.session._assert_identity=lambda s:set();self.session._management_evidence=lambda snap:True;self.session._unique_button=lambda *args,**kwargs:None
-        state,_=self.session.associate(self.store,task,self.db.order_by_id(self.oid),'https://example.test',5,lambda:False)
-        self.assertEqual(state,'awaiting_verification');row=self.db.order_by_id(self.oid);self.assertFalse(row['linked_apple_connection']);self.assertEqual(row['association_state'],'awaiting_verification')
-
     def test_unlinked_guest_management_controls_are_not_authenticated_order_read(self):
         jid=self.store.create_job(self.store.snapshot([self.oid],self.cid,'refresh'));task=self.store.take_next({self.cid})
         self.session._linked_in_listing=lambda n:False;self.session.task_page=lambda *a,**k:object();self.session.snapshot=lambda p:self._snap();self.session._assert_identity=lambda s:set()

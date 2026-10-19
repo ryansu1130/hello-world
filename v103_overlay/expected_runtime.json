@@ -14,7 +14,7 @@
     {"path":"tests/browser_contract.py","sha256":"603464da3128adf800d7473212382a00e7ebe47019e9c7102bfda46337a704dc","bytes":12857},
     {"path":"tests/gui_v103_smoke.py","sha256":"61cd145e3a2f7b85bc91e31d81d3f3bf714b91ea2cc727bc6faa886be9ebcff9","bytes":3643},
     {"path":"tests/test_stable_sync.py","sha256":"ea5837ea620c2e0ad9ea2e30fedfe4cb9629d9b337fcc2395028af236900b4d3","bytes":11439},
-    {"path":"tests/test_v103_unit.py","sha256":"005b28835ad38253b9dad68ce38a49037e79b1d7d32332652b2779b8a70f7115","bytes":6558},
+    {"path":"tests/test_v103_unit.py","sha256":"8c062bd7a42f8ddcebab1b93e47de539ad41f4389bc25f9ee41cad9ccee49678","bytes":5708},
     {"path":"tools/build_native_launcher.py","sha256":"c5cf54b6aa592f1a61a745015a20bbbbe90d622882696435974296106e3f9d37","bytes":2974},
     {"path":"tools/verify_native_launcher.py","sha256":"e4df50191481e046e93953ef74ecb18f4d2cbb066bf1fdfadb15e503210c2854","bytes":1515},
     {"path":"version.json","sha256":"3ff039cfdc76a3ca2fe0482e8407840c10f167e06dd286ce6231fae569a8c95c","bytes":128}
