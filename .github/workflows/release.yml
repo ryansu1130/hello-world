@@ -101,7 +101,8 @@ jobs:
             }
           }
           if ($mismatches.Count -gt 0) {
-            $mismatches | ForEach-Object { Write-Error $_ }
+            Write-Host 'Exact runtime/test/build mismatches:'
+            $mismatches | ForEach-Object { Write-Host $_ }
             throw 'v1.0.3 exact runtime/test/build file verification failed'
           }
           Get-ChildItem src -Recurse -File -Include *.rej,*.orig -ErrorAction SilentlyContinue | Remove-Item -Force
