@@ -1,0 +1,86 @@
+name: One-time correction of v1.0.5 candidate source fixture
+
+on:
+  push:
+    branches: [v105-candidate]
+    paths:
+      - .github/workflows/fix-v105-source.yml
+
+permissions:
+  contents: write
+
+jobs:
+  correct-exact-source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Replace failing GUI fixture and rebuild checksum-locked source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import base64
+          import hashlib
+          import io
+          import json
+          import zipfile
+          from pathlib import Path
+
+          root = Path('source_bundle')
+          manifest_path = root / 'manifest.json'
+          manifest = json.loads(manifest_path.read_text())
+          assert manifest['archive'] == 'AhPaTaTracker_source_v1.0.5.zip'
+          assert manifest['encoding'] == 'base64'
+          assert manifest['sha256'] == 'bab13d8cf161a939fdf4c0e0b8028eed5e537995f4dd615b9829f22f4e9de08e'
+          parts = sorted(root.glob('part*.b64'))
+          assert len(parts) == manifest['parts'] == 21
+          assert [p.name for p in parts] == [f'part{i:03d}.b64' for i in range(21)]
+          raw = base64.b64decode(''.join(p.read_text() for p in parts), validate=True)
+          assert hashlib.sha256(raw).hexdigest() == manifest['sha256']
+          old_call = b'page.refresh_routes()'
+          new_call = b'page.refresh()'
+          corrected = 0
+          dest = io.BytesIO()
+          with zipfile.ZipFile(io.BytesIO(raw), 'r') as source:
+              assert source.testzip() is None
+              with zipfile.ZipFile(dest, 'w') as output:
+                  for item in source.infolist():
+                      data = source.read(item.filename)
+                      if item.filename == 'tests/gui_v105_smoke.py':
+                          assert data.count(old_call) == 1
+                          data = data.replace(old_call, new_call)
+                          corrected += 1
+                      output.writestr(item, data)
+          assert corrected == 1
+          updated = dest.getvalue()
+          with zipfile.ZipFile(io.BytesIO(updated), 'r') as checked:
+              assert checked.testzip() is None
+              assert old_call not in checked.read('tests/gui_v105_smoke.py')
+              assert new_call in checked.read('tests/gui_v105_smoke.py')
+              assert checked.read('version.json').find(b'1.0.5') >= 0
+          encoded = base64.b64encode(updated).decode('ascii')
+          pieces = [encoded[i:i + 18000] for i in range(0, len(encoded), 18000)]
+          for part in parts:
+              part.unlink()
+          for i, piece in enumerate(pieces):
+              (root / f'part{i:03d}.b64').write_text(piece)
+          manifest['sha256'] = hashlib.sha256(updated).hexdigest()
+          manifest['parts'] = len(pieces)
+          manifest_path.write_text(json.dumps(manifest, indent=2) + '\n')
+          print('Corrected exact v1.0.5 source SHA-256:', manifest['sha256'])
+          print('Source parts:', len(pieces), 'archive bytes:', len(updated))
+          PY
+      - name: Commit corrected snapshot and remove this temporary workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm .github/workflows/fix-v105-source.yml
+          git add source_bundle/
+          git diff --cached --check
+          git commit -m 'Correct v1.0.5 GUI fixture inside verified complete source snapshot'
+          git push origin HEAD:v105-candidate
