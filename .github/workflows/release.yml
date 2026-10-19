@@ -167,10 +167,39 @@ jobs:
         env:
           QT_QPA_PLATFORM: offscreen
         run: |
-          python tests/gui_smoke.py *> gui_check.log
-          $code = $LASTEXITCODE
-          Get-Content gui_check.log
-          if ($code -ne 0) { exit $code }
+          $ErrorActionPreference = 'Stop'
+          $tests = @(
+            'test_archiving_refreshes_all_pages_and_restores',
+            'test_branding_and_sync_mode_defaults',
+            'test_bulk_save_updates_tracking_and_counts',
+            'test_calendar_rendering_and_two_digit_days',
+            'test_details_dialog_both_themes',
+            'test_details_refresh_lifecycle',
+            'test_hover_marks_whole_row_without_checking',
+            'test_main_and_shipping_check_uncheck',
+            'test_pickup_check_uncheck_and_select_export',
+            'test_settings_rejects_mismatched_pair_without_testing_old_values',
+            'test_settings_render_and_read_legacy_keys',
+            'test_settings_successful_oauth_never_says_tracking_passed',
+            'test_sort_keeps_checked_identity',
+            'test_startup_all_pages_and_themes'
+          )
+          Remove-Item gui_check.log -ErrorAction SilentlyContinue
+          foreach ($test in $tests) {
+            Write-Host "Running GUITests.$test"
+            $out = "gui_$test.out"
+            $err = "gui_$test.err"
+            $p = Start-Process -FilePath python -ArgumentList @('tests/gui_smoke.py',"GUITests.$test") -NoNewWindow -PassThru -RedirectStandardOutput $out -RedirectStandardError $err
+            if (-not $p.WaitForExit(45000)) {
+              try { $p.Kill($true) } catch {}
+              if (Test-Path $out) { Get-Content $out | Tee-Object -FilePath gui_check.log -Append }
+              if (Test-Path $err) { Get-Content $err | Tee-Object -FilePath gui_check.log -Append }
+              throw "GUITests.$test exceeded 45 seconds"
+            }
+            if (Test-Path $out) { Get-Content $out | Tee-Object -FilePath gui_check.log -Append }
+            if (Test-Path $err) { Get-Content $err | Tee-Object -FilePath gui_check.log -Append }
+            if ($p.ExitCode -ne 0) { throw "GUITests.$test failed with exit code $($p.ExitCode)" }
+          }
 
       - name: Run Apple workspace Qt checks
         working-directory: src
