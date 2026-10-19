@@ -79,10 +79,32 @@ jobs:
             try { $gzip.CopyTo($output) } finally { $gzip.Dispose() }
           } finally { $output.Dispose(); $input.Dispose() }
           if ((Get-FileHash $patchPath -Algorithm SHA256).Hash.ToLower() -ne $o.patch_sha256.ToLower()) { throw 'Overlay patch SHA-256 mismatch' }
-          git apply --check --directory=src $patchPath
-          if ($LASTEXITCODE -ne 0) { throw 'v1.0.3 overlay does not apply cleanly inside reconstructed source' }
-          git apply --whitespace=nowarn --directory=src $patchPath
-          if ($LASTEXITCODE -ne 0) { throw 'v1.0.3 overlay apply failed inside reconstructed source' }
+          # The development handoff was made from a v1.0.2 working snapshot that differs
+          # slightly from the exact published v1.0.2 archive. Apply every matching hunk,
+          # then enforce byte-for-byte SHA-256 for all runtime/test/build files below.
+          git apply --reject --whitespace=nowarn --directory=src $patchPath
+          $applyCode = $LASTEXITCODE
+          Write-Host "git apply --reject exit code: $applyCode (exact-file hash gate follows)"
+          $expected = Get-Content v103_overlay\expected_runtime.json -Raw | ConvertFrom-Json
+          if ($expected.version -ne $env:VERSION) { throw 'Expected-runtime manifest version mismatch' }
+          $mismatches = @()
+          foreach ($entry in $expected.files) {
+            $target = Join-Path 'src' $entry.path
+            if (-not (Test-Path -LiteralPath $target)) {
+              $mismatches += "$($entry.path): missing"
+              continue
+            }
+            $size = (Get-Item -LiteralPath $target).Length
+            $hash = (Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash.ToLower()
+            if ($size -ne [int64]$entry.bytes -or $hash -ne $entry.sha256.ToLower()) {
+              $mismatches += "$($entry.path): expected $($entry.sha256)/$($entry.bytes), got $hash/$size"
+            }
+          }
+          if ($mismatches.Count -gt 0) {
+            $mismatches | ForEach-Object { Write-Error $_ }
+            throw 'v1.0.3 exact runtime/test/build file verification failed'
+          }
+          Get-ChildItem src -Recurse -File -Include *.rej,*.orig -ErrorAction SilentlyContinue | Remove-Item -Force
           if ((Get-Content src\version.json -Raw | ConvertFrom-Json).version -ne $env:VERSION) { throw 'Patched source version mismatch' }
 
       - name: Set up Python

@@ -1,0 +1,22 @@
+{
+  "version": "1.0.3",
+  "files": [
+    {"path":"AppleOrderTracker.py","sha256":"1d863ac17d2c8bb20d206c432e2a9d7bfcc270dba1d6bcfc94277c5ad2f7bf0b","bytes":394079},
+    {"path":"app_updater.py","sha256":"7e83a2f2610603dd8732476696f7b7530131ede93eb376d437c8a90a92a4c501","bytes":11528},
+    {"path":"apple_account_ui.py","sha256":"94065658a32720cf2cc67bee10d1be84f82401c734d656312e1a4ad7dcadc426","bytes":59643},
+    {"path":"apple_accounts.py","sha256":"913f76af0269e4b0e14a429beedb377b262a8fa40451bbf744ddb2093b21fc9d","bytes":31652},
+    {"path":"apple_browser.py","sha256":"e2206884664c3e5143435d470421a2a72300b6623bb9cc09847cf1b357a80014","bytes":33309},
+    {"path":"apple_jobs.py","sha256":"de10b759eec44ecfdb99027e14b6d0a561813401a8aa6cc72ec314076a774fff","bytes":15166},
+    {"path":"apple_profiles.py","sha256":"8ab563f3a03449b786a9b89be3687edcaefde84c37363e4277b8c130f187d7e7","bytes":12073},
+    {"path":"build_windows.bat","sha256":"38e7a4571493796d041fa62c7000e07bba3dc95d1880ddb8325b827c46102b95","bytes":5419},
+    {"path":"build_windows_v103.ps1","sha256":"7c75cc367fc52407810b031890286d5e22d3b9dcc9c84d78e4f8debff885cb8a","bytes":1810},
+    {"path":"launcher/Program.cs","sha256":"8fbe202f763da736766fad1d7551f1ac8c27a3435f9f1094e519a89c35803bb2","bytes":13654},
+    {"path":"tests/browser_contract.py","sha256":"603464da3128adf800d7473212382a00e7ebe47019e9c7102bfda46337a704dc","bytes":12857},
+    {"path":"tests/gui_v103_smoke.py","sha256":"61cd145e3a2f7b85bc91e31d81d3f3bf714b91ea2cc727bc6faa886be9ebcff9","bytes":3643},
+    {"path":"tests/test_stable_sync.py","sha256":"ea5837ea620c2e0ad9ea2e30fedfe4cb9629d9b337fcc2395028af236900b4d3","bytes":11439},
+    {"path":"tests/test_v103_unit.py","sha256":"18c29611f3f90ca9db6a371c9782a4fd102a8acbbc4fcb9d08650e318c7161f8","bytes":6398},
+    {"path":"tools/build_native_launcher.py","sha256":"c5cf54b6aa592f1a61a745015a20bbbbe90d622882696435974296106e3f9d37","bytes":2974},
+    {"path":"tools/verify_native_launcher.py","sha256":"e4df50191481e046e93953ef74ecb18f4d2cbb066bf1fdfadb15e503210c2854","bytes":1515},
+    {"path":"version.json","sha256":"3ff039cfdc76a3ca2fe0482e8407840c10f167e06dd286ce6231fae569a8c95c","bytes":128}
+  ]
+}
