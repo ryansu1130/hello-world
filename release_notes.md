@@ -3,7 +3,7 @@
 - Fixes the reported updater failure: the existing EXE was left locked after the app PID exited, so the old helper could neither overwrite nor restore it.
 - Tracks both the application PID and the independent persistent native-launcher PID; waits for them to exit before installing.
 - Replaces the old single-attempt CMD copy-and-rollback logic with a standalone PowerShell helper that stages the verified download on the installed volume and uses atomic `File.Replace` with bounded retries for Windows file locks.
-- Checks the downloaded SHA-256 again, preserves the original EXE if replacement cannot occur, retains the verified download on failure and reports precise update-stage errors.
+- Computes SHA-256 through built-in .NET cryptography (without assuming Get-FileHash exists) and checks the downloaded checksum again, preserves the original EXE if replacement cannot occur, retains the verified download on failure and reports precise update-stage errors.
 - Waits for the new native launcher to finish its startup acknowledgment. If startup is uncertain after replacement, retains the previous EXE without automatically launching an older binary against a potentially migrated database.
 - Adds Windows integration regressions using actual Windows executables, including a simulated file lock and failed replacement preservation.
 - Preserves Apple Account sign-in recovery, order association controls, jobs, proxy selection, Gmail/UPS tracking, and all user data from v1.0.5.
