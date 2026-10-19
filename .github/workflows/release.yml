@@ -119,7 +119,7 @@ jobs:
           $requiredMarkers = @{
             'src\AppleOrderTracker.py' = @('APP_VERSION = "1.0.3"','installed_executable()','def _acknowledge_launcher_startup','Restart confirmed after database and main-window initialization')
             'src\apple_account_ui.py' = @('class RouteModel','Save Proxies','Test Selected (','def show_getting_started','RouteTestBatchWorker')
-            'src\apple_browser.py' = @('Order association is not proven by the signed-in Apple order listing','awaiting_verification')
+            'src\apple_browser.py' = @('needs_association','awaiting_verification')
             'src\tests\browser_contract.py' = @('test_unlinked_guest_management_controls_require_association_handoff','test_unlinked_guest_management_controls_do_not_verify_submitted_phone','test_unlinked_guest_management_controls_do_not_authenticate_observations')
           }
           foreach ($file in $requiredMarkers.Keys) {
