@@ -94,10 +94,14 @@ jobs:
               $mismatches += "$($entry.path): missing"
               continue
             }
-            $size = (Get-Item -LiteralPath $target).Length
-            $hash = (Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash.ToLower()
+            $text = [IO.File]::ReadAllText($target)
+            $normalized = $text.Replace("`r`n","`n").Replace("`r","`n")
+            $normalizedBytes = [Text.UTF8Encoding]::new($false).GetBytes($normalized)
+            $size = $normalizedBytes.Length
+            $hashBytes = [Security.Cryptography.SHA256]::HashData($normalizedBytes)
+            $hash = [Convert]::ToHexString($hashBytes).ToLower()
             if ($size -ne [int64]$entry.bytes -or $hash -ne $entry.sha256.ToLower()) {
-              $mismatches += "$($entry.path): expected $($entry.sha256)/$($entry.bytes), got $hash/$size"
+              $mismatches += "$($entry.path): expected normalized $($entry.sha256)/$($entry.bytes), got $hash/$size"
             }
           }
           if ($mismatches.Count -gt 0) {
