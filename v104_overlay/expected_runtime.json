@@ -1,0 +1,25 @@
+{
+  "version": "1.0.4",
+  "files": [
+    {"path":"AppleOrderTracker.py","sha256":"20427a9da3b316beb37813bcaff7332440c3875d1f659393903eaeba86f31025","bytes":394957},
+    {"path":"BUILD_INFO.txt","sha256":"fc9466956a2b3dd14280d7e64b8d86b627ba013ee3562a95e5cbf8998110fcce","bytes":198},
+    {"path":"README.md","sha256":"c974e8ee02d1ab3b8bf4e384d2cd0f34489fba3dc20eefaf92a3bf4430e5c6b0","bytes":6853},
+    {"path":"REQUIREMENTS_STATUS.md","sha256":"a934a865299163df1916280fe0b75603319985ce7474f767600750193d95c6d7","bytes":4699},
+    {"path":"TEST_REPORT.md","sha256":"a29504e69e5c217f600f90e768d1054c5883cd7c05aecf3d104206b504776ae2","bytes":2785},
+    {"path":"apple_account_ui.py","sha256":"88c29c8d9b14740e74980856dcbf7f399e27806d192545491ed8ad4fa22bb7f5","bytes":69596},
+    {"path":"apple_accounts.py","sha256":"308e1e62bcd14ed32fe826cfea7a9be0bfda979800edf5a1e955fd942cf5832f","bytes":35753},
+    {"path":"apple_browser.py","sha256":"c234189bec1b4c7f5fdd2b9ec415c8fdaeaf4c543bfbaa2d9104f149806ccfae","bytes":37363},
+    {"path":"apple_jobs.py","sha256":"c4761b0186cc74f12b75d43cb90b3eb0e0e66d4769c1afba9e770e33c3da5130","bytes":19300},
+    {"path":"build_windows.bat","sha256":"df2d0e319ebcff0690ca24c9aeedab6e63d4cc33a66fd5f301631a5d4986241f","bytes":5619},
+    {"path":"build_windows_v104.ps1","sha256":"f3de45a5e43abe235469e8e65ef385b12c135e57450606bc98cd52c4d3b0c611","bytes":1889},
+    {"path":"launcher/Program.cs","sha256":"74750cb68c82d9bdee5445d36ede3c31509638f4a7637beb351c76d396cd95c0","bytes":13654},
+    {"path":"release_notes.md","sha256":"1fdad0ca664b385906b39ff175bb6fd4bc38ca60b1ec1307c4b22ab3b87e3045","bytes":2558},
+    {"path":"tests/browser_contract.py","sha256":"b355465dde2ce19999de563aa1acb4715caf4dc8b34a20ab19586a57dedaf777","bytes":13837},
+    {"path":"tests/gui_apple_smoke.py","sha256":"775e440de2ad523f35bbd9193079421d2a382f770de1cb392fd77b9bcfc07255","bytes":5143},
+    {"path":"tests/gui_v103_smoke.py","sha256":"6a0a6afc8ef04bffb733b9ce639d5dc0600ca892e3db3445f6a38cd97b193c00","bytes":3643},
+    {"path":"tests/gui_v104_smoke.py","sha256":"583e03b76ee0e5d5a6f9fb57d931c57517fa8130c858ffb830b88e06de35e4a0","bytes":4108},
+    {"path":"tests/test_stable_sync.py","sha256":"682d88b57f445dd362923ad893f995f19f448b698c17bef947cd216742e0a8ea","bytes":11439},
+    {"path":"tests/test_v104_unit.py","sha256":"411ae0e1d32287347db8fe6c744b96b4a79078387d703631f7298395a1138c32","bytes":6883},
+    {"path":"version.json","sha256":"c1d4a9c7aa23a86c4116fb98461f393efea93c1c9c4e4d3dc34a2df82e84c565","bytes":128}
+  ]
+}
