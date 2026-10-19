@@ -79,13 +79,10 @@ jobs:
             try { $gzip.CopyTo($output) } finally { $gzip.Dispose() }
           } finally { $output.Dispose(); $input.Dispose() }
           if ((Get-FileHash $patchPath -Algorithm SHA256).Hash.ToLower() -ne $o.patch_sha256.ToLower()) { throw 'Overlay patch SHA-256 mismatch' }
-          Push-Location src
-          try {
-            git apply --check $patchPath
-            if ($LASTEXITCODE -ne 0) { throw 'v1.0.3 overlay does not apply cleanly' }
-            git apply --whitespace=nowarn $patchPath
-            if ($LASTEXITCODE -ne 0) { throw 'v1.0.3 overlay apply failed' }
-          } finally { Pop-Location }
+          git apply --check --directory=src $patchPath
+          if ($LASTEXITCODE -ne 0) { throw 'v1.0.3 overlay does not apply cleanly inside reconstructed source' }
+          git apply --whitespace=nowarn --directory=src $patchPath
+          if ($LASTEXITCODE -ne 0) { throw 'v1.0.3 overlay apply failed inside reconstructed source' }
           if ((Get-Content src\version.json -Raw | ConvertFrom-Json).version -ne $env:VERSION) { throw 'Patched source version mismatch' }
 
       - name: Set up Python
