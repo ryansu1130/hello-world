@@ -3,7 +3,11 @@ name: Build and publish Windows release
 on:
   push:
     branches: [master]
-    paths: [version.json]
+    paths:
+      - version.json
+      - source_bundle/**
+      - .github/workflows/release.yml
+      - release_notes.md
   workflow_dispatch:
 
 permissions:

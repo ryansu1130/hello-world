@@ -1,23 +1,47 @@
 # Ah Pa Ta Tracker
 
-Windows Apple Store order tracker with Gmail IMAP import, local SQLite storage, manual overrides, UPS API status, resilient large-account sync, and built-in over-the-air updates.
+Windows Apple Store order tracker with Gmail IMAP, local SQLite storage, UPS API,
+manual overrides, selected exports and in-app updates through this repository.
 
-## Current stable version
+## Install or update
 
-**v1.0.1**
+From v1.0.1 or newer, choose **Check for Updates** in the app sidebar or Settings.
+The tracker downloads the latest stable Windows executable, verifies its SHA-256,
+then replaces and relaunches the application. No source download or local build
+is needed. Existing orders and settings remain in their current local location.
 
-This repository is the stable update channel used by the app. The Windows release workflow reconstructs the source bundle, runs the automated tests, builds `AhPaTaTracker.exe`, computes its SHA-256 checksum, and publishes both files as a GitHub Release.
+For a new installation, download **AhPaTaTracker.exe** from
+[the latest stable release](https://github.com/ryansu1130/hello-world/releases/latest).
+Microsoft Edge or Google Chrome must be installed for the Apple Account workspace.
 
-## Updating inside the app
+## v1.0.2: Apple Account workspace
 
-Starting with v1.0.1, use **Check for Updates** in the app sidebar or **Settings > App updates**. The updater reads the latest stable GitHub Release, downloads the EXE and checksum, verifies SHA-256, closes the current app, replaces the EXE, and relaunches it.
+This source revision adds exact-alias phone mappings, isolated browser sign-in,
+confirmed durable Apple action jobs and authenticated Apple observations. Manual
+overrides remain highest priority. **Apple actions are browser-assisted and private
+production pages were not live-verified during development.** Cancellation/payment
+final submissions can require a user handoff. No raw card batch-reuse feature is
+claimed. The source README and REQUIREMENTS_STATUS.md explain limitations.
 
-Local orders and credentials are not stored in this repository and are not replaced by app updates.
+The latest successfully published stable release is the source of truth for
+**Check for Updates**. A new version.json commit is not itself a successful release.
 
-## Source bundle
+## Publishing and OTA
 
-The connected publishing workflow stores the application source under `source_bundle/` as ordered base64 chunks. GitHub Actions verifies the bundle SHA-256 before extracting, testing, and building it. This keeps the release source snapshot exact while allowing automated publishing through the connected GitHub writer.
+The Windows Actions workflow reconstructs the exact source snapshot from ordered
+base64 files in `source_bundle/`, checks its SHA-256, runs core/Qt/controlled-browser
+tests, packages the Windows EXE and creates a draft release. It publishes only after
+both `AhPaTaTracker.exe` and `AhPaTaTracker.exe.sha256` are uploaded. Existing releases
+are not overwritten. See the Actions result for the actual build outcome.
 
-## Release process
+Starting with v1.0.1 the app reads the latest stable release, downloads its EXE and
+checksum, verifies the bytes, closes the old app and launches the replacement. The
+local order database and credential/session storage are not release assets.
 
-For future updates, update the source bundle and release notes first, then update `version.json` last. Changing `version.json` triggers the Windows build/release workflow.
+## Source, tests and privacy
+
+`source_bundle/manifest.json` declares the archive checksum and part count. Decode
+parts in numbered order and unzip to read the source, tests and documentation.
+Only curated application source, synthetic tests, docs and app icons are published.
+Do not add your Profiles.json, order emails, database, Apple cookies, API keys,
+proxy credentials or payment data to this repository.
