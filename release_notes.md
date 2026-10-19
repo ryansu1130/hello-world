@@ -13,3 +13,5 @@
 ## Verification boundary
 
 The release pipeline runs 236 offline core checks plus Windows Qt tests and 16 controlled Chromium DOM scenarios. Controlled fixtures are NOT Apple's production environment. Real Apple Account login, 2FA, association, cancellation, payment and order-status updates require manual validation by the user in their dedicated Apple browser. The app never collects passwords, 2FA codes or full card data.
+
+The Windows v1.0.5 validation includes a corrected proxy-selection GUI regression that refreshes the saved route list through the existing workspace refresh method. The candidate must pass the packaged Windows release gates before it is promoted to stable.
