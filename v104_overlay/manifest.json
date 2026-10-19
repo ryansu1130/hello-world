@@ -1,8 +1,6 @@
 {
   "version": "1.0.4",
-  "encoding": "base64+gzip",
-  "patch_sha256": "12f2499cc38aabbe69128dd13760ab8bc00de88da4eec6d0c553768fdb2820fd",
-  "patch_gzip_sha256": "cab18b737caa487c3650931b329f09f843ff178119ec6558910e48b4b195de23",
-  "parts": 3,
-  "apply": "git apply --unidiff-zero"
+  "encoding": "zip",
+  "archive": "v104_overlay.zip",
+  "sha256": "cb7e02862169f6a1541c233ccc15905b44732370e8416c58b488018ff867e4d5"
 }
