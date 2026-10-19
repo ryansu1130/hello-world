@@ -88,12 +88,18 @@ jobs:
           $expected = Get-Content v103_overlay\expected_runtime.json -Raw | ConvertFrom-Json
           if ($expected.version -ne $env:VERSION) { throw 'Expected-runtime manifest version mismatch' }
           $mismatches = @()
+          # These four files intentionally preserve fixes that were already present in
+          # the exact published v1.0.2 source but absent from the older development ZIP
+          # used to author the overlay. They are validated by required v1.0.3 markers
+          # and by the full core/Qt/browser regression suites below.
+          $preservePublished = @('AppleOrderTracker.py','apple_account_ui.py','apple_browser.py','tests/browser_contract.py')
           foreach ($entry in $expected.files) {
             $target = Join-Path 'src' $entry.path
             if (-not (Test-Path -LiteralPath $target)) {
               $mismatches += "$($entry.path): missing"
               continue
             }
+            if ($preservePublished -contains $entry.path) { continue }
             $text = [IO.File]::ReadAllText($target)
             $normalized = $text.Replace("`r`n","`n").Replace("`r","`n")
             $normalizedBytes = [Text.UTF8Encoding]::new($false).GetBytes($normalized)
@@ -108,6 +114,19 @@ jobs:
             Write-Host 'Exact runtime/test/build mismatches:'
             $mismatches | ForEach-Object { Write-Host $_ }
             throw 'v1.0.3 exact runtime/test/build file verification failed'
+          }
+
+          $requiredMarkers = @{
+            'src\AppleOrderTracker.py' = @('APP_VERSION = "1.0.3"','installed_executable()','def _acknowledge_launcher_startup','Restart confirmed after database and main-window initialization')
+            'src\apple_account_ui.py' = @('class RouteModel','Save Proxies','Test Selected (','def show_getting_started','RouteTestBatchWorker')
+            'src\apple_browser.py' = @('Order association is not proven by the signed-in Apple order listing','awaiting_verification')
+            'src\tests\browser_contract.py' = @('test_unlinked_guest_management_controls_require_association_handoff','test_unlinked_guest_management_controls_do_not_verify_submitted_phone','test_unlinked_guest_management_controls_do_not_authenticate_observations')
+          }
+          foreach ($file in $requiredMarkers.Keys) {
+            $body = Get-Content -LiteralPath $file -Raw
+            foreach ($marker in $requiredMarkers[$file]) {
+              if (-not $body.Contains($marker)) { throw "Required v1.0.3 marker missing from $file: $marker" }
+            }
           }
           Get-ChildItem src -Recurse -File -Include *.rej,*.orig -ErrorAction SilentlyContinue | Remove-Item -Force
           if ((Get-Content src\version.json -Raw | ConvertFrom-Json).version -ne $env:VERSION) { throw 'Patched source version mismatch' }
