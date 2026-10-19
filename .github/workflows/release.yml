@@ -183,8 +183,27 @@ jobs:
             throw 'v1.0.4 exact runtime/test/build verification failed'
           }
 
+          # Apply v1.0.4 feature deltas to published files in place instead
+          # of replacing those files wholesale. The published source contains
+          # safety fixes that predate this feature branch (cache rebuild guards,
+          # association evidence, and browser contract hardening).
+          Push-Location src
+          try {
+            foreach ($patcher in @(
+              'v104_patches/patch_v104_main.py',
+              'v104_patches/patch_v104_ui.py',
+              'v104_patches/patch_v104_browser.py',
+              'v104_patches/patch_v104_tests.py'
+            )) {
+              python $patcher
+              if ($LASTEXITCODE -ne 0) { throw "v1.0.4 preserved-file patch failed: $patcher" }
+            }
+          } finally {
+            Pop-Location
+          }
+
           $required104 = @{
-            'src\AppleOrderTracker.py' = @('APP_VERSION = "1.0.4"','class OrderSelectionTableView','Shift-click')
+            'src\AppleOrderTracker.py' = @('APP_VERSION = "1.0.4"','class OrderSelectionTableView','Shift-click','def order_cache_rebuild_block_reason')
             'src\apple_account_ui.py' = @('START','Remove selected','Delete all','def add_route','def remove_selected_jobs')
             'src\apple_browser.py' = @('def begin_sign_in','guest-order lookup','def _signin_control')
             'src\apple_jobs.py' = @('route_switching','begin_sign_in','next_failover_route')
