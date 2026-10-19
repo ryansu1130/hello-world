@@ -125,7 +125,7 @@ jobs:
           foreach ($file in $requiredMarkers.Keys) {
             $body = Get-Content -LiteralPath $file -Raw
             foreach ($marker in $requiredMarkers[$file]) {
-              if (-not $body.Contains($marker)) { throw "Required v1.0.3 marker missing from $file: $marker" }
+              if (-not $body.Contains($marker)) { throw "Required v1.0.3 marker missing from ${file}: $marker" }
             }
           }
           Get-ChildItem src -Recurse -File -Include *.rej,*.orig -ErrorAction SilentlyContinue | Remove-Item -Force
