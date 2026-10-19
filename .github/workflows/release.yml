@@ -82,9 +82,15 @@ jobs:
           # The development handoff was made from a v1.0.2 working snapshot that differs
           # slightly from the exact published v1.0.2 archive. Apply every matching hunk,
           # then enforce byte-for-byte SHA-256 for all runtime/test/build files below.
+          $savedErrorPreference = $ErrorActionPreference
+          $savedNativePreference = $PSNativeCommandUseErrorActionPreference
+          $ErrorActionPreference = 'Continue'
+          $PSNativeCommandUseErrorActionPreference = $false
           git apply --reject --whitespace=nowarn --directory=src $patchPath
           $applyCode = $LASTEXITCODE
-          Write-Host "git apply --reject exit code: $applyCode (exact-file hash gate follows)"
+          $PSNativeCommandUseErrorActionPreference = $savedNativePreference
+          $ErrorActionPreference = $savedErrorPreference
+          Write-Host "git apply --reject exit code: $applyCode (expected when published v1.0.2 already contains a hunk; verification gates follow)"
           $expected = Get-Content v103_overlay\expected_runtime.json -Raw | ConvertFrom-Json
           if ($expected.version -ne $env:VERSION) { throw 'Expected-runtime manifest version mismatch' }
           $mismatches = @()
