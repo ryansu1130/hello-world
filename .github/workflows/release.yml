@@ -7,6 +7,7 @@ on:
       - version.json
       - source_bundle/**
       - v103_overlay/**
+      - v104_overlay/**
       - .github/workflows/release.yml
       - release_notes.md
   workflow_dispatch:
@@ -96,7 +97,7 @@ jobs:
           Copy-Item -LiteralPath v103_overlay\test_v103_unit.py -Destination src\tests\test_v103_unit.py -Force
           Copy-Item -LiteralPath v103_overlay\gui_v103_smoke.py -Destination src\tests\gui_v103_smoke.py -Force
           $expected = Get-Content v103_overlay\expected_runtime.json -Raw | ConvertFrom-Json
-          if ($expected.version -ne $env:VERSION) { throw 'Expected-runtime manifest version mismatch' }
+          if ($expected.version -ne '1.0.3') { throw 'v1.0.3 expected-runtime manifest version mismatch' }
           $mismatches = @()
           # These four files intentionally preserve fixes that were already present in
           # the exact published v1.0.2 source but absent from the older development ZIP
@@ -139,7 +140,234 @@ jobs:
             }
           }
           Get-ChildItem src -Recurse -File -Include *.rej,*.orig -ErrorAction SilentlyContinue | Remove-Item -Force
-          if ((Get-Content src\version.json -Raw | ConvertFrom-Json).version -ne $env:VERSION) { throw 'Patched source version mismatch' }
+          if ((Get-Content src\version.json -Raw | ConvertFrom-Json).version -ne '1.0.3') { throw 'v1.0.3 patched source version mismatch' }
+
+          # Overlay the checksum-locked v1.0.4 production-readiness update.
+          $o104 = Get-Content v104_overlay\manifest.json -Raw | ConvertFrom-Json
+          if ($o104.version -ne $env:VERSION -or $o104.encoding -ne 'zip' -or $o104.archive -ne 'v104_overlay.zip') { throw 'Invalid v1.0.4 overlay manifest' }
+          $zip104 = 'v104_overlay\v104_overlay.zip'
+          if (-not (Test-Path -LiteralPath $zip104)) { throw 'Missing v1.0.4 overlay archive' }
+          $hash104 = (Get-FileHash $zip104 -Algorithm SHA256).Hash.ToLower()
+          if ($hash104 -ne $o104.sha256.ToLower()) { throw 'v1.0.4 overlay SHA-256 mismatch' }
+          $overlay104 = Join-Path $env:RUNNER_TEMP 'v104-overlay'
+          Remove-Item $overlay104 -Recurse -Force -ErrorAction SilentlyContinue
+          Expand-Archive -LiteralPath $zip104 -DestinationPath $overlay104 -Force
+          Copy-Item -Path (Join-Path $overlay104 '*') -Destination src -Recurse -Force
+
+          $expected104 = Get-Content v104_overlay\expected_runtime.json -Raw | ConvertFrom-Json
+          if ($expected104.version -ne $env:VERSION) { throw 'v1.0.4 expected-runtime version mismatch' }
+          $mismatches104 = @()
+          foreach ($entry in $expected104.files) {
+            $target = Join-Path 'src' $entry.path
+            if (-not (Test-Path -LiteralPath $target)) {
+              $mismatches104 += "$($entry.path): missing"
+              continue
+            }
+            $bytes = [IO.File]::ReadAllBytes($target)
+            $isText = $entry.path -match '\.(py|md|txt|json|bat|ps1|cs)
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: src/requirements.txt
+
+      - name: Install dependencies
+        working-directory: src
+        run: python -m pip install -r requirements.txt
+
+      - name: Run offline core tests
+        working-directory: src
+        shell: pwsh
+        run: |
+          python -m unittest discover -s tests -p "test_*.py" -v *> core_check.log
+          $code = $LASTEXITCODE
+          Get-Content core_check.log
+          if ($code -ne 0) { exit $code }
+
+      - name: Run existing tracker Qt checks
+        working-directory: src
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tests = @(
+            'test_archiving_refreshes_all_pages_and_restores',
+            'test_branding_and_sync_mode_defaults',
+            'test_bulk_save_updates_tracking_and_counts',
+            'test_calendar_rendering_and_two_digit_days',
+            'test_details_dialog_both_themes',
+            'test_details_refresh_lifecycle',
+            'test_hover_marks_whole_row_without_checking',
+            'test_main_and_shipping_check_uncheck',
+            'test_pickup_check_uncheck_and_select_export',
+            'test_settings_rejects_mismatched_pair_without_testing_old_values',
+            'test_settings_render_and_read_legacy_keys',
+            'test_settings_successful_oauth_never_says_tracking_passed',
+            'test_sort_keeps_checked_identity',
+            'test_startup_all_pages_and_themes'
+          )
+          Remove-Item gui_check.log -ErrorAction SilentlyContinue
+          foreach ($test in $tests) {
+            Write-Host "Running GUITests.$test"
+            $out = "gui_$test.out"
+            $err = "gui_$test.err"
+            $p = Start-Process -FilePath python -ArgumentList @('tests/gui_smoke.py',"GUITests.$test") -NoNewWindow -PassThru -RedirectStandardOutput $out -RedirectStandardError $err
+            if (-not $p.WaitForExit(45000)) {
+              try { $p.Kill($true) } catch {}
+              if (Test-Path $out) { Get-Content $out | Tee-Object -FilePath gui_check.log -Append }
+              if (Test-Path $err) { Get-Content $err | Tee-Object -FilePath gui_check.log -Append }
+              throw "GUITests.$test exceeded 45 seconds"
+            }
+            if (Test-Path $out) { Get-Content $out | Tee-Object -FilePath gui_check.log -Append }
+            if (Test-Path $err) { Get-Content $err | Tee-Object -FilePath gui_check.log -Append }
+            if ($p.ExitCode -ne 0) { throw "GUITests.$test failed with exit code $($p.ExitCode)" }
+          }
+
+      - name: Run Apple workspace Qt checks
+        working-directory: src
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          python tests/gui_apple_smoke.py *> apple_gui_check.log
+          $code = $LASTEXITCODE
+          Get-Content apple_gui_check.log
+          if ($code -ne 0) { exit $code }
+
+      - name: Run v1.0.3 Qt checks
+        working-directory: src
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          python tests/gui_v103_smoke.py *> v103_gui_check.log
+          $code = $LASTEXITCODE
+          Get-Content v103_gui_check.log
+          if ($code -ne 0) { exit $code }
+
+      - name: Run v1.0.4 Qt checks
+        working-directory: src
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          python tests/gui_v104_smoke.py *> v104_gui_check.log
+          $code = $LASTEXITCODE
+          Get-Content v104_gui_check.log
+          if ($code -ne 0) { exit $code }
+
+      - name: Run controlled browser DOM checks (no Apple requests)
+        working-directory: src
+        shell: pwsh
+        run: |
+          python tests/browser_suite.py *> browser_check.log
+          $code = $LASTEXITCODE
+          Get-Content browser_check.log
+          if ($code -ne 0) { exit $code }
+
+      - name: Build PyInstaller payload
+        working-directory: src
+        shell: pwsh
+        run: |
+          python -m PyInstaller --noconfirm --clean --onefile --windowed `
+            --exclude-module PySide6.QtWebEngineCore `
+            --exclude-module PySide6.QtWebEngineWidgets `
+            --collect-all keyring --collect-all playwright `
+            --icon="app_icon.ico" --add-data "app_icon.ico;." `
+            --name AhPaTaTrackerApp AppleOrderTracker.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Build and verify persistent native launcher
+        working-directory: src
+        shell: pwsh
+        run: |
+          python tools/build_native_launcher.py `
+            --source launcher/Program.cs `
+            --payload dist/AhPaTaTrackerApp.exe `
+            --output dist/AhPaTaTracker.exe `
+            --version $env:VERSION `
+            --icon app_icon.ico
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python tools/verify_native_launcher.py dist/AhPaTaTracker.exe --version $env:VERSION
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Generate SHA-256
+        working-directory: src
+        shell: pwsh
+        run: |
+          $h = (Get-FileHash dist\AhPaTaTracker.exe -Algorithm SHA256).Hash.ToLower()
+          "$h  AhPaTaTracker.exe" | Out-File dist\AhPaTaTracker.exe.sha256 -Encoding ascii -NoNewline
+
+      - name: Publish complete stable release (never replace an existing release)
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tag = "v$env:VERSION"
+          gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
+          if ($LASTEXITCODE -eq 0) { throw "Release/draft $tag already exists. Inspect it; published versions are not overwritten." }
+          gh release create $tag "src\dist\AhPaTaTracker.exe" "src\dist\AhPaTaTracker.exe.sha256" `
+            --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --draft `
+            --title "Ah Pa Ta Tracker $tag" --notes-file release_notes.md
+          if ($LASTEXITCODE -ne 0) { throw 'Draft release/upload failed' }
+          $raw = gh release view $tag --repo $env:GITHUB_REPOSITORY --json assets
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot verify uploaded assets' }
+          $names = @(($raw | ConvertFrom-Json).assets.name)
+          if ('AhPaTaTracker.exe' -notin $names -or 'AhPaTaTracker.exe.sha256' -notin $names) { throw 'Missing release assets; draft remains unpublished' }
+          gh release edit $tag --repo $env:GITHUB_REPOSITORY --draft=false --latest
+          if ($LASTEXITCODE -ne 0) { throw 'Publish failed; inspect the draft' }
+
+      - name: Retain CI diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: validation-${{ env.VERSION }}
+          path: |
+            src/*_check.log
+            src/v103_light.png
+            src/v103_dark.png
+            src/v104_light.png
+            src/v104_dark.png
+          if-no-files-found: ignore
+
+            if ($isText) {
+              $text = [Text.Encoding]::UTF8.GetString($bytes)
+              $normalized = $text.Replace("`r`n","`n").Replace("`r","`n")
+              $bytes = [Text.UTF8Encoding]::new($false).GetBytes($normalized)
+            }
+            $size = $bytes.Length
+            $hashBytes = [Security.Cryptography.SHA256]::HashData($bytes)
+            $hash = [Convert]::ToHexString($hashBytes).ToLower()
+            if ($size -ne [int64]$entry.bytes -or $hash -ne $entry.sha256.ToLower()) {
+              $mismatches104 += "$($entry.path): expected $($entry.sha256)/$($entry.bytes), got $hash/$size"
+            }
+          }
+          if ($mismatches104.Count -gt 0) {
+            Write-Host 'v1.0.4 runtime/test/build mismatches:'
+            $mismatches104 | ForEach-Object { Write-Host $_ }
+            throw 'v1.0.4 exact runtime/test/build verification failed'
+          }
+
+          $required104 = @{
+            'src\AppleOrderTracker.py' = @('APP_VERSION = "1.0.4"','class OrderSelectionTableView','Shift-click')
+            'src\apple_account_ui.py' = @('START','Remove selected','Delete all','def add_route','def remove_selected_jobs')
+            'src\apple_browser.py' = @('def begin_sign_in','guest-order lookup','def _signin_control')
+            'src\apple_jobs.py' = @('route_switching','begin_sign_in','next_failover_route')
+            'src\apple_accounts.py' = @('SCHEMA_VERSION = 3','def archive_job','def next_failover_route')
+            'src\tests\test_v104_unit.py' = @('SignInHandoffTests','RunnerFailoverTests')
+            'src\tests\gui_v104_smoke.py' = @('V104GUITests','test_shift_click_checks_contiguous_range')
+          }
+          foreach ($file in $required104.Keys) {
+            $body = Get-Content -LiteralPath $file -Raw
+            foreach ($marker in $required104[$file]) {
+              if (-not $body.Contains($marker)) { throw "Required v1.0.4 marker missing from ${file}: $marker" }
+            }
+          }
+          if ((Get-Content src\version.json -Raw | ConvertFrom-Json).version -ne $env:VERSION) { throw 'v1.0.4 source version mismatch' }
 
       - name: Set up Python
         uses: actions/setup-python@v5
