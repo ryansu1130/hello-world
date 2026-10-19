@@ -88,6 +88,7 @@ jobs:
           $PSNativeCommandUseErrorActionPreference = $false
           git apply --reject --whitespace=nowarn --directory=src $patchPath
           $applyCode = $LASTEXITCODE
+          $global:LASTEXITCODE = 0
           $PSNativeCommandUseErrorActionPreference = $savedNativePreference
           $ErrorActionPreference = $savedErrorPreference
           Write-Host "git apply --reject exit code: $applyCode (expected when published v1.0.2 already contains a hunk; verification gates follow)"
