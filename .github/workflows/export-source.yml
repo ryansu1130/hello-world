@@ -1,0 +1,17 @@
+name: Export temporary source archive
+on:
+  push:
+    branches:
+      - tmp-source-reconstruct
+    paths:
+      - .github/workflows/export-source.yml
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/upload-artifact@v4
+        with:
+          name: exact-published-source
+          path: tmp/AhPaTaTracker_source_v1.0.2.zip
+          if-no-files-found: error
