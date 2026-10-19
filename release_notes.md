@@ -1,17 +1,17 @@
-# Ah Pa Ta Tracker v1.0.5 — Apple Account sign-in and workflow recovery
+# Ah Pa Ta Tracker v1.0.6 — Reliable Windows in-app updates
 
-- Separates Apple Account sign-in, password/passkey challenges, Apple 2FA, page-loading delays, and guest Find Your Order from real verified account state.
-- Opens the dedicated Apple Account sign-in branch from guest lookup instead of waiting indefinitely on a guest-order spinner.
-- Detects Apple-hosted embedded verification controls without reading any form field values.
-- Verifies a signed-in Apple order listing and the selected Apple Account identity before permitting authenticated order actions; unknown and mismatched states remain blocked.
-- Adds clearer Open Apple Account Sign-in, Open Order Listing, Check Session, Reconnect, Cancel Connection and Forget Saved Session controls, with browser-close recovery.
-- Continues checking sign-in while another tracker tab is visible.
-- Adds explicit Test All Enabled Proxies (without silently falling back to Direct), and Clear Finished Job History with audit preservation.
-- Improves batch-review table sizing and responsive dialog behavior.
-- Preserves v1.0.4 JSON phone mapping, bulk START, account-evidence guards, proxy CRUD, selected route tests, cooldowns, verified/uncertain action semantics, jobs, Gmail sync, UPS tracking, status priorities and native OTA launcher.
+- Fixes the reported updater failure: the existing EXE was left locked after the app PID exited, so the old helper could neither overwrite nor restore it.
+- Tracks both the application PID and the independent persistent native-launcher PID; waits for them to exit before installing.
+- Replaces the old single-attempt CMD copy-and-rollback logic with a standalone PowerShell helper that stages the verified download on the installed volume and uses atomic `File.Replace` with bounded retries for Windows file locks.
+- Checks the downloaded SHA-256 again, preserves the original EXE if replacement cannot occur, retains the verified download on failure and reports precise update-stage errors.
+- Waits for the new native launcher to finish its startup acknowledgment. If startup is uncertain after replacement, retains the previous EXE without automatically launching an older binary against a potentially migrated database.
+- Adds Windows integration regressions using actual Windows executables, including a simulated file lock and failed replacement preservation.
+- Preserves Apple Account sign-in recovery, order association controls, jobs, proxy selection, Gmail/UPS tracking, and all user data from v1.0.5.
 
-## Verification boundary
+## Existing v1.0.4/v1.0.5 installations
 
-The release pipeline runs 236 offline core checks plus Windows Qt tests and 16 controlled Chromium DOM scenarios. Controlled fixtures are NOT Apple's production environment. Real Apple Account login, 2FA, association, cancellation, payment and order-status updates require manual validation by the user in their dedicated Apple browser. The app never collects passwords, 2FA codes or full card data.
+The old installer helper is embedded in the installed program and cannot be retroactively fixed by publishing a release. If Check for Updates fails with "file is being used by another process", close all tracker processes and manually replace only the installed `AhPaTaTracker.exe` with this release's verified executable, ideally after a Windows restart. The local database is stored separately under `%LOCALAPPDATA%\AppleOrderTracker` and must be left untouched. Subsequent releases can use the fixed update helper.
 
-The Windows v1.0.5 validation includes a corrected proxy-selection GUI regression that refreshes the saved route list through the existing workspace refresh method. The candidate must pass the packaged Windows release gates before it is promoted to stable.
+## Verification limits
+
+Windows CI runs offline core tests, Qt GUI checks, controlled browser fixtures, a locked-file updater integration test, and the native-launcher build before publishing. Actual file locks and endpoint security software on a user's PC can differ from CI. Live Apple login/order actions remain browser-assisted and require user validation.

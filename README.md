@@ -1,6 +1,36 @@
-# Ah Pa Ta Tracker v1.0.5
+# Ah Pa Ta Tracker v1.0.6
 
 Ah Pa Ta Tracker is a Windows Apple order tracker with Gmail import, local SQLite storage, UPS tracking, manual overrides, Apple Account browser-assisted workflows, phone mapping, proxy management, durable Apple jobs and built-in GitHub Release updates.
+
+## v1.0.6: Windows update installation repair
+
+The v1.0.5 update helper incorrectly waited only for the Python application PID and
+attempted to overwrite the public `AhPaTaTracker.exe` once, even if the native
+launcher or another running tracker instance still held the file open. Its fallback
+then tried another copy against the same locked EXE.
+
+v1.0.6 fixes the updater by making the installer a separate Windows PowerShell
+process, waiting for both the application and launcher, staging the verified EXE
+on the installed drive, and atomically replacing the EXE while retaining a backup.
+Windows sharing violations are retried for up to 150 seconds. An unsuccessful
+replacement preserves the original executable and verified download. The installer
+waits for the updated native launcher to confirm successful app startup. After
+startup failure, it preserves the backup but does not automatically downgrade an
+application that might have migrated the database.
+
+**One-time repair for v1.0.4/v1.0.5 users whose in-app update is already broken:**
+The old installer code cannot be changed remotely. Close the tracker and all
+`AhPaTaTracker.exe` / `AhPaTaTrackerApp.exe` processes. Download
+`AhPaTaTracker.exe` and its `.sha256` from the official v1.0.6 GitHub release,
+verify the SHA-256, then replace the installed executable in its existing folder.
+Do **not** delete or replace `%LOCALAPPDATA%\AppleOrderTracker`: that folder contains
+the local order database and app data. If Windows reports the EXE is still open,
+restart Windows and replace it **before reopening the tracker**. Subsequent
+updates should use the repaired in-app helper.
+
+The `tests/test_updater_windows_integration.py` suite exercises a successful
+atomic replacement, waiting for a second process holding a file lock, and a
+permanently locked target that must remain unchanged.
 
 ## v1.0.5 Apple Account connection recovery
 
@@ -86,4 +116,4 @@ The Windows release workflow reconstructs the stable source, applies the version
 
 ## Local build
 
-On Windows run `build_windows.bat`. It runs the configured validation gates and creates `dist\AhPaTaTracker.exe`. Normal users should use **Check for Updates** after v1.0.5 is published.
+On Windows run `build_windows.bat`. It runs the configured validation gates and creates `dist\AhPaTaTracker.exe`. Users on v1.0.6 can use **Check for Updates** normally. A one-time manual repair may be necessary for an older version whose update helper is already blocked by a locked EXE.
