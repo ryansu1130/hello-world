@@ -1,24 +1,14 @@
-# Ah Pa Ta Tracker v1.0.2 - Apple Account workspace
+# Ah Pa Ta Tracker v1.0.3 — updater, Apple sign-in, themes and proxy controls
 
-- Adds an Apple Account workspace with isolated visible Edge/Chrome sessions and experimental Brave support.
-- Imports exact-alias phone candidates from many JSON files, retaining provenance and per-order verification. Payment objects are not imported.
-- Shows Phone number(s) directly below Alias email in order details.
-- Adds confirmed, durable association/refresh/cancellation/payment job interfaces, pause/resume/stop/reconcile controls and sanitized result export.
-- Adds authenticated Apple observations below manual overrides and above existing email/carrier reconciliation.
-- Preserves Gmail sync, UPS tracking, manual edits, archives, exports, calendar and existing data location; backs up before additive migration.
-- Includes stable proxy routes, encrypted Windows app-session storage and cooldowns without bypass behavior.
-- Requires signed-in account-list evidence before marking a new guest-order association or verifying its phone candidate.
-- Protects durable Apple job, submission and verification history from Rebuild Cache; email can still be refreshed with Full Account Sync or Refresh Details.
-- Stops order-detail refresh timers when their dialogs close, preventing background reads after database shutdown.
+- Replaces the fragile direct PyInstaller restart with a persistent native `AhPaTaTracker.exe` launcher. It validates its embedded app payload, clears stale PyInstaller/Python runtime variables, and waits for a tokenized startup acknowledgment that is written only after the database and main window initialize.
+- Keeps update diagnostics across shutdown/restart and preserves the previous EXE on a startup failure without automatically downgrading after a possible database migration.
+- Repairs the Apple Account workspace in dark mode and refines light-mode spacing, controls, table states, tabs, focus, disabled and feedback styling through the shared theme.
+- Clarifies Apple Account connection states, automatic sign-in checks, browser-close/failure handling, two-factor instructions and reconnect recovery. Edge or Chrome is recommended; Brave remains experimental.
+- Adds a Getting Started workflow and clearer action/status feedback throughout the Apple workspace and update flow.
+- Renames Network routes to **Proxies**, adds explicit **Save Proxies**, preserves valid entries when other import rows are invalid, and stores credentials using the existing Windows user-bound protected vault.
+- Adds per-proxy checkboxes, selection count, **Test Selected (N)**, stable proxy identities, bounded test concurrency, stop support, per-row results and no direct-network fallback during proxy tests.
+- Preserves v1.0.2 safety rules: manual overrides remain highest priority, guest orders require account-list evidence before association, and Rebuild Cache cannot erase durable Apple job/verification history.
 
-## Important limitations
+## Verification boundary
 
-Private Apple production flows have not been live-verified. Unknown pages, sign-in,
-2FA or uncertainty require browser handoff. Cancellation and payment final submission
-are browser-assisted; this release does not automatically apply one raw card across
-a batch. A method update is not proof of payment clearance. Brave and dynamic Apple
-page layouts require validation in the user's environment. No real orders/payments
-were changed in tests.
-
-Read README.md and REQUIREMENTS_STATUS.md before using Apple actions. Start with one
-owned order. A release is published only after its configured Windows CI gates pass.
+The release workflow runs offline core tests, Qt GUI checks and controlled browser-DOM scenarios before building/publishing Windows. Private Apple production pages, real sign-in/2FA, account association, cancellation and payment remain browser-assisted and are not claimed as live-verified. Start with one owned order.

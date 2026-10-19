@@ -6,6 +6,7 @@ on:
     paths:
       - version.json
       - source_bundle/**
+      - v103_overlay/**
       - .github/workflows/release.yml
       - release_notes.md
   workflow_dispatch:
@@ -20,7 +21,7 @@ concurrency:
 jobs:
   build-release:
     runs-on: windows-latest
-    timeout-minutes: 35
+    timeout-minutes: 45
     steps:
       - name: Check out exact release source
         uses: actions/checkout@v4
@@ -50,10 +51,42 @@ jobs:
           $bytes = [Convert]::FromBase64String($joined)
           $zip = Join-Path $env:RUNNER_TEMP 'AhPaTaTracker-source.zip'
           [IO.File]::WriteAllBytes($zip,$bytes)
-          if ((Get-FileHash $zip -Algorithm SHA256).Hash.ToLower() -ne $m.sha256.ToLower()) { throw 'Source SHA-256 mismatch' }
+          $baseHash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
+          if ($baseHash -ne $m.sha256.ToLower()) { throw 'Source SHA-256 mismatch' }
           New-Item -ItemType Directory -Force -Path src | Out-Null
           Expand-Archive -Path $zip -DestinationPath src -Force
-          if ((Get-Content src\version.json -Raw | ConvertFrom-Json).version -ne $env:VERSION) { throw 'Source version mismatch' }
+
+          $o = Get-Content v103_overlay\manifest.json -Raw | ConvertFrom-Json
+          if ($o.encoding -ne 'base64+gzip' -or $o.parts -lt 1 -or $o.parts -gt 50) { throw 'Invalid v1.0.3 overlay manifest' }
+          if ($baseHash -ne $o.base_source_sha256.ToLower()) { throw 'Overlay base source mismatch' }
+          $overlayParts = @(Get-ChildItem v103_overlay\part*.b64 | Sort-Object Name)
+          if ($overlayParts.Count -ne $o.parts) { throw 'Overlay part count mismatch' }
+          $overlayJoined = ''
+          for ($i=0; $i -lt $o.parts; $i++) {
+            $expected = ('part{0:D3}.b64' -f $i)
+            if ($overlayParts[$i].Name -ne $expected) { throw 'Overlay parts are not contiguous' }
+            $overlayJoined += Get-Content $overlayParts[$i].FullName -Raw
+          }
+          $gzBytes = [Convert]::FromBase64String($overlayJoined)
+          $gzPath = Join-Path $env:RUNNER_TEMP 'v103-overlay.patch.gz'
+          [IO.File]::WriteAllBytes($gzPath, $gzBytes)
+          if ((Get-FileHash $gzPath -Algorithm SHA256).Hash.ToLower() -ne $o.patch_gzip_sha256.ToLower()) { throw 'Overlay gzip SHA-256 mismatch' }
+          $patchPath = Join-Path $env:RUNNER_TEMP 'v103-overlay.patch'
+          $input = [IO.File]::OpenRead($gzPath)
+          $output = [IO.File]::Create($patchPath)
+          try {
+            $gzip = [IO.Compression.GZipStream]::new($input, [IO.Compression.CompressionMode]::Decompress)
+            try { $gzip.CopyTo($output) } finally { $gzip.Dispose() }
+          } finally { $output.Dispose(); $input.Dispose() }
+          if ((Get-FileHash $patchPath -Algorithm SHA256).Hash.ToLower() -ne $o.patch_sha256.ToLower()) { throw 'Overlay patch SHA-256 mismatch' }
+          Push-Location src
+          try {
+            git apply --check $patchPath
+            if ($LASTEXITCODE -ne 0) { throw 'v1.0.3 overlay does not apply cleanly' }
+            git apply --whitespace=nowarn $patchPath
+            if ($LASTEXITCODE -ne 0) { throw 'v1.0.3 overlay apply failed' }
+          } finally { Pop-Location }
+          if ((Get-Content src\version.json -Raw | ConvertFrom-Json).version -ne $env:VERSION) { throw 'Patched source version mismatch' }
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -75,7 +108,7 @@ jobs:
           Get-Content core_check.log
           if ($code -ne 0) { exit $code }
 
-      - name: Run existing and Apple workspace Qt checks
+      - name: Run Qt GUI checks
         working-directory: src
         shell: pwsh
         env:
@@ -89,6 +122,10 @@ jobs:
           $code = $LASTEXITCODE
           Get-Content apple_gui_check.log
           if ($code -ne 0) { exit $code }
+          python tests/gui_v103_smoke.py *> v103_gui_check.log
+          $code = $LASTEXITCODE
+          Get-Content v103_gui_check.log
+          if ($code -ne 0) { exit $code }
 
       - name: Run controlled browser DOM checks (no Apple requests)
         working-directory: src
@@ -99,7 +136,7 @@ jobs:
           Get-Content browser_check.log
           if ($code -ne 0) { exit $code }
 
-      - name: Build Windows EXE
+      - name: Build PyInstaller payload
         working-directory: src
         shell: pwsh
         run: |
@@ -108,7 +145,21 @@ jobs:
             --exclude-module PySide6.QtWebEngineWidgets `
             --collect-all keyring --collect-all playwright `
             --icon="app_icon.ico" --add-data "app_icon.ico;." `
-            --name AhPaTaTracker AppleOrderTracker.py
+            --name AhPaTaTrackerApp AppleOrderTracker.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Build and verify persistent native launcher
+        working-directory: src
+        shell: pwsh
+        run: |
+          python tools/build_native_launcher.py `
+            --source launcher/Program.cs `
+            --payload dist/AhPaTaTrackerApp.exe `
+            --output dist/AhPaTaTracker.exe `
+            --version $env:VERSION `
+            --icon app_icon.ico
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python tools/verify_native_launcher.py dist/AhPaTaTracker.exe --version $env:VERSION
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Generate SHA-256
@@ -143,5 +194,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: validation-${{ env.VERSION }}
-          path: src/*_check.log
+          path: |
+            src/*_check.log
+            src/v103_light.png
+            src/v103_dark.png
           if-no-files-found: ignore

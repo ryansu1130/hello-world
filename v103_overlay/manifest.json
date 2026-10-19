@@ -1,0 +1,7 @@
+{
+  "base_source_sha256": "27353edf5de447353c4f947412d72e24dfab415e522489ed4d8c7714039588bf",
+  "patch_sha256": "bcca1678716f29ee5185a3bee65a721a07f916c3615271788ca5c13919633fdc",
+  "patch_gzip_sha256": "487a735a54ec46351ae8ed3165ad919cf819a77fa186d413ccb3aee95c4407b5",
+  "encoding": "base64+gzip",
+  "parts": 5
+}
