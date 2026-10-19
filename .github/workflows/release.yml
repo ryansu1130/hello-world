@@ -7,6 +7,7 @@ on:
       - version.json
       - source_bundle/**
       - v103_overlay/**
+      - v104_overlay/**
       - .github/workflows/release.yml
       - release_notes.md
   workflow_dispatch:
@@ -96,7 +97,7 @@ jobs:
           Copy-Item -LiteralPath v103_overlay\test_v103_unit.py -Destination src\tests\test_v103_unit.py -Force
           Copy-Item -LiteralPath v103_overlay\gui_v103_smoke.py -Destination src\tests\gui_v103_smoke.py -Force
           $expected = Get-Content v103_overlay\expected_runtime.json -Raw | ConvertFrom-Json
-          if ($expected.version -ne $env:VERSION) { throw 'Expected-runtime manifest version mismatch' }
+          if ($expected.version -ne '1.0.3') { throw 'v1.0.3 expected-runtime manifest version mismatch' }
           $mismatches = @()
           # These four files intentionally preserve fixes that were already present in
           # the exact published v1.0.2 source but absent from the older development ZIP
@@ -139,7 +140,65 @@ jobs:
             }
           }
           Get-ChildItem src -Recurse -File -Include *.rej,*.orig -ErrorAction SilentlyContinue | Remove-Item -Force
-          if ((Get-Content src\version.json -Raw | ConvertFrom-Json).version -ne $env:VERSION) { throw 'Patched source version mismatch' }
+          if ((Get-Content src\version.json -Raw | ConvertFrom-Json).version -ne '1.0.3') { throw 'v1.0.3 patched source version mismatch' }
+
+          # Overlay the checksum-locked v1.0.4 production-readiness update.
+          $o104 = Get-Content v104_overlay\manifest.json -Raw | ConvertFrom-Json
+          if ($o104.version -ne $env:VERSION -or $o104.encoding -ne 'zip' -or $o104.archive -ne 'v104_overlay.zip') { throw 'Invalid v1.0.4 overlay manifest' }
+          $zip104 = 'v104_overlay\v104_overlay.zip'
+          if (-not (Test-Path -LiteralPath $zip104)) { throw 'Missing v1.0.4 overlay archive' }
+          $hash104 = (Get-FileHash $zip104 -Algorithm SHA256).Hash.ToLower()
+          if ($hash104 -ne $o104.sha256.ToLower()) { throw 'v1.0.4 overlay SHA-256 mismatch' }
+          $overlay104 = Join-Path $env:RUNNER_TEMP 'v104-overlay'
+          Remove-Item $overlay104 -Recurse -Force -ErrorAction SilentlyContinue
+          Expand-Archive -LiteralPath $zip104 -DestinationPath $overlay104 -Force
+          Copy-Item -Path (Join-Path $overlay104 '*') -Destination src -Recurse -Force
+
+          $expected104 = Get-Content v104_overlay\expected_runtime.json -Raw | ConvertFrom-Json
+          if ($expected104.version -ne $env:VERSION) { throw 'v1.0.4 expected-runtime version mismatch' }
+          $mismatches104 = @()
+          foreach ($entry in $expected104.files) {
+            $target = Join-Path 'src' $entry.path
+            if (-not (Test-Path -LiteralPath $target)) {
+              $mismatches104 += "$($entry.path): missing"
+              continue
+            }
+            $bytes = [IO.File]::ReadAllBytes($target)
+            $isText = $entry.path -match '\.(py|md|txt|json|bat|ps1|cs)$'
+            if ($isText) {
+              $text = [Text.Encoding]::UTF8.GetString($bytes)
+              $normalized = $text.Replace("`r`n","`n").Replace("`r","`n")
+              $bytes = [Text.UTF8Encoding]::new($false).GetBytes($normalized)
+            }
+            $size = $bytes.Length
+            $hashBytes = [Security.Cryptography.SHA256]::HashData($bytes)
+            $hash = [Convert]::ToHexString($hashBytes).ToLower()
+            if ($size -ne [int64]$entry.bytes -or $hash -ne $entry.sha256.ToLower()) {
+              $mismatches104 += "$($entry.path): expected $($entry.sha256)/$($entry.bytes), got $hash/$size"
+            }
+          }
+          if ($mismatches104.Count -gt 0) {
+            Write-Host 'v1.0.4 runtime/test/build mismatches:'
+            $mismatches104 | ForEach-Object { Write-Host $_ }
+            throw 'v1.0.4 exact runtime/test/build verification failed'
+          }
+
+          $required104 = @{
+            'src\AppleOrderTracker.py' = @('APP_VERSION = "1.0.4"','class OrderSelectionTableView','Shift-click')
+            'src\apple_account_ui.py' = @('START','Remove selected','Delete all','def add_route','def remove_selected_jobs')
+            'src\apple_browser.py' = @('def begin_sign_in','guest-order lookup','def _signin_control')
+            'src\apple_jobs.py' = @('route_switching','begin_sign_in','next_failover_route')
+            'src\apple_accounts.py' = @('SCHEMA_VERSION = 3','def archive_job','def next_failover_route')
+            'src\tests\test_v104_unit.py' = @('SignInHandoffTests','RunnerFailoverTests')
+            'src\tests\gui_v104_smoke.py' = @('V104GUITests','test_shift_click_checks_contiguous_range')
+          }
+          foreach ($file in $required104.Keys) {
+            $body = Get-Content -LiteralPath $file -Raw
+            foreach ($marker in $required104[$file]) {
+              if (-not $body.Contains($marker)) { throw "Required v1.0.4 marker missing from ${file}: $marker" }
+            }
+          }
+          if ((Get-Content src\version.json -Raw | ConvertFrom-Json).version -ne $env:VERSION) { throw 'v1.0.4 source version mismatch' }
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -223,6 +282,17 @@ jobs:
           Get-Content v103_gui_check.log
           if ($code -ne 0) { exit $code }
 
+      - name: Run v1.0.4 Qt checks
+        working-directory: src
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          python tests/gui_v104_smoke.py *> v104_gui_check.log
+          $code = $LASTEXITCODE
+          Get-Content v104_gui_check.log
+          if ($code -ne 0) { exit $code }
+
       - name: Run controlled browser DOM checks (no Apple requests)
         working-directory: src
         shell: pwsh
@@ -294,4 +364,6 @@ jobs:
             src/*_check.log
             src/v103_light.png
             src/v103_dark.png
+            src/v104_light.png
+            src/v104_dark.png
           if-no-files-found: ignore
