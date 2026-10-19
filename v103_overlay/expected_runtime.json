@@ -12,7 +12,7 @@
     {"path":"build_windows_v103.ps1","sha256":"7c75cc367fc52407810b031890286d5e22d3b9dcc9c84d78e4f8debff885cb8a","bytes":1810},
     {"path":"launcher/Program.cs","sha256":"8fbe202f763da736766fad1d7551f1ac8c27a3435f9f1094e519a89c35803bb2","bytes":13654},
     {"path":"tests/browser_contract.py","sha256":"603464da3128adf800d7473212382a00e7ebe47019e9c7102bfda46337a704dc","bytes":12857},
-    {"path":"tests/gui_v103_smoke.py","sha256":"61cd145e3a2f7b85bc91e31d81d3f3bf714b91ea2cc727bc6faa886be9ebcff9","bytes":3643},
+    {"path":"tests/gui_v103_smoke.py","sha256":"64329fd10f471c2acd9a64211201bff9f1a7a9c0e855c946f72b875824c68360","bytes":3869},
     {"path":"tests/test_stable_sync.py","sha256":"ea5837ea620c2e0ad9ea2e30fedfe4cb9629d9b337fcc2395028af236900b4d3","bytes":11439},
     {"path":"tests/test_v103_unit.py","sha256":"8c062bd7a42f8ddcebab1b93e47de539ad41f4389bc25f9ee41cad9ccee49678","bytes":5708},
     {"path":"tools/build_native_launcher.py","sha256":"c5cf54b6aa592f1a61a745015a20bbbbe90d622882696435974296106e3f9d37","bytes":2974},
