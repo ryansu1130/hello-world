@@ -161,7 +161,7 @@ jobs:
           Get-Content core_check.log
           if ($code -ne 0) { exit $code }
 
-      - name: Run Qt GUI checks
+      - name: Run existing tracker Qt checks
         working-directory: src
         shell: pwsh
         env:
@@ -171,10 +171,24 @@ jobs:
           $code = $LASTEXITCODE
           Get-Content gui_check.log
           if ($code -ne 0) { exit $code }
+
+      - name: Run Apple workspace Qt checks
+        working-directory: src
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
           python tests/gui_apple_smoke.py *> apple_gui_check.log
           $code = $LASTEXITCODE
           Get-Content apple_gui_check.log
           if ($code -ne 0) { exit $code }
+
+      - name: Run v1.0.3 Qt checks
+        working-directory: src
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
           python tests/gui_v103_smoke.py *> v103_gui_check.log
           $code = $LASTEXITCODE
           Get-Content v103_gui_check.log
