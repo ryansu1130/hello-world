@@ -3,65 +3,97 @@ name: Build and publish Windows release
 on:
   push:
     branches: [master]
-    paths:
-      - version.json
+    paths: [version.json]
   workflow_dispatch:
 
 permissions:
   contents: write
 
+concurrency:
+  group: ahpata-stable-release
+  cancel-in-progress: false
+
 jobs:
   build-release:
     runs-on: windows-latest
     timeout-minutes: 35
-
     steps:
-      - name: Check out release repository
+      - name: Check out exact release source
         uses: actions/checkout@v4
 
       - name: Read release version
         shell: pwsh
         run: |
+          $ErrorActionPreference = 'Stop'
           $v = (Get-Content version.json -Raw | ConvertFrom-Json).version
-          if ($v -notmatch '^\d+\.\d+\.\d+$') { throw "Invalid version.json version: $v" }
+          if ($v -notmatch '^\d+\.\d+\.\d+$') { throw 'Invalid release version' }
           "VERSION=$v" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
-      - name: Reconstruct source bundle
+      - name: Reconstruct and verify source bundle
         shell: pwsh
         run: |
-          $manifest = Get-Content source_bundle\manifest.json -Raw | ConvertFrom-Json
-          $joined = ""
-          Get-ChildItem source_bundle\part*.b64 | Sort-Object Name | ForEach-Object {
-            $joined += (Get-Content $_.FullName -Raw)
+          $ErrorActionPreference = 'Stop'
+          $m = Get-Content source_bundle\manifest.json -Raw | ConvertFrom-Json
+          if ($m.encoding -ne 'base64' -or $m.parts -lt 1 -or $m.parts -gt 200) { throw 'Invalid bundle manifest' }
+          $parts = @(Get-ChildItem source_bundle\part*.b64 | Sort-Object Name)
+          if ($parts.Count -ne $m.parts) { throw 'Bundle part count mismatch' }
+          $joined = ''
+          for ($i=0; $i -lt $m.parts; $i++) {
+            $expected = ('part{0:D3}.b64' -f $i)
+            if ($parts[$i].Name -ne $expected) { throw 'Bundle parts are not contiguous' }
+            $joined += Get-Content $parts[$i].FullName -Raw
           }
           $bytes = [Convert]::FromBase64String($joined)
-          $zip = Join-Path $env:RUNNER_TEMP "AhPaTaTracker-source.zip"
-          [IO.File]::WriteAllBytes($zip, $bytes)
-          $actual = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
-          if ($actual -ne $manifest.sha256.ToLower()) { throw "Source bundle SHA-256 mismatch" }
+          $zip = Join-Path $env:RUNNER_TEMP 'AhPaTaTracker-source.zip'
+          [IO.File]::WriteAllBytes($zip,$bytes)
+          if ((Get-FileHash $zip -Algorithm SHA256).Hash.ToLower() -ne $m.sha256.ToLower()) { throw 'Source SHA-256 mismatch' }
           New-Item -ItemType Directory -Force -Path src | Out-Null
           Expand-Archive -Path $zip -DestinationPath src -Force
+          if ((Get-Content src\version.json -Raw | ConvertFrom-Json).version -ne $env:VERSION) { throw 'Source version mismatch' }
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-          cache: 'pip'
+          cache: pip
           cache-dependency-path: src/requirements.txt
 
       - name: Install dependencies
         working-directory: src
         run: python -m pip install -r requirements.txt
 
-      - name: Run offline tests
+      - name: Run offline core tests
         working-directory: src
-        run: python -m unittest discover -s tests -p "test_*.py" -v
+        shell: pwsh
+        run: |
+          python -m unittest discover -s tests -p "test_*.py" -v *> core_check.log
+          $code = $LASTEXITCODE
+          Get-Content core_check.log
+          if ($code -ne 0) { exit $code }
 
-      - name: Run Qt smoke test
+      - name: Run existing and Apple workspace Qt checks
         working-directory: src
-        run: python tests/gui_smoke.py
+        shell: pwsh
         env:
           QT_QPA_PLATFORM: offscreen
+        run: |
+          python tests/gui_smoke.py *> gui_check.log
+          $code = $LASTEXITCODE
+          Get-Content gui_check.log
+          if ($code -ne 0) { exit $code }
+          python tests/gui_apple_smoke.py *> apple_gui_check.log
+          $code = $LASTEXITCODE
+          Get-Content apple_gui_check.log
+          if ($code -ne 0) { exit $code }
+
+      - name: Run controlled browser DOM checks (no Apple requests)
+        working-directory: src
+        shell: pwsh
+        run: |
+          python tests/browser_suite.py *> browser_check.log
+          $code = $LASTEXITCODE
+          Get-Content browser_check.log
+          if ($code -ne 0) { exit $code }
 
       - name: Build Windows EXE
         working-directory: src
@@ -70,32 +102,42 @@ jobs:
           python -m PyInstaller --noconfirm --clean --onefile --windowed `
             --exclude-module PySide6.QtWebEngineCore `
             --exclude-module PySide6.QtWebEngineWidgets `
-            --collect-all keyring `
-            --icon="app_icon.ico" `
-            --add-data "app_icon.ico;." `
+            --collect-all keyring --collect-all playwright `
+            --icon="app_icon.ico" --add-data "app_icon.ico;." `
             --name AhPaTaTracker AppleOrderTracker.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Generate SHA-256
         working-directory: src
         shell: pwsh
         run: |
-          $hash = (Get-FileHash "dist\AhPaTaTracker.exe" -Algorithm SHA256).Hash.ToLower()
-          "$hash  AhPaTaTracker.exe" | Out-File "dist\AhPaTaTracker.exe.sha256" -Encoding ascii -NoNewline
+          $h = (Get-FileHash dist\AhPaTaTracker.exe -Algorithm SHA256).Hash.ToLower()
+          "$h  AhPaTaTracker.exe" | Out-File dist\AhPaTaTracker.exe.sha256 -Encoding ascii -NoNewline
 
-      - name: Publish stable GitHub Release
+      - name: Publish complete stable release (never replace an existing release)
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          $ErrorActionPreference = 'Stop'
           $tag = "v$env:VERSION"
           gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
-          if ($LASTEXITCODE -eq 0) {
-            gh release delete $tag --repo $env:GITHUB_REPOSITORY --cleanup-tag --yes
-          }
-          gh release create $tag `
-            "src\dist\AhPaTaTracker.exe" `
-            "src\dist\AhPaTaTracker.exe.sha256" `
-            --repo $env:GITHUB_REPOSITORY `
-            --target master `
-            --title "Ah Pa Ta Tracker v$env:VERSION" `
-            --notes-file release_notes.md
+          if ($LASTEXITCODE -eq 0) { throw "Release/draft $tag already exists. Inspect it; published versions are not overwritten." }
+          gh release create $tag "src\dist\AhPaTaTracker.exe" "src\dist\AhPaTaTracker.exe.sha256" `
+            --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --draft `
+            --title "Ah Pa Ta Tracker $tag" --notes-file release_notes.md
+          if ($LASTEXITCODE -ne 0) { throw 'Draft release/upload failed' }
+          $raw = gh release view $tag --repo $env:GITHUB_REPOSITORY --json assets
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot verify uploaded assets' }
+          $names = @(($raw | ConvertFrom-Json).assets.name)
+          if ('AhPaTaTracker.exe' -notin $names -or 'AhPaTaTracker.exe.sha256' -notin $names) { throw 'Missing release assets; draft remains unpublished' }
+          gh release edit $tag --repo $env:GITHUB_REPOSITORY --draft=false --latest
+          if ($LASTEXITCODE -ne 0) { throw 'Publish failed; inspect the draft' }
+
+      - name: Retain CI diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: validation-${{ env.VERSION }}
+          path: src/*_check.log
+          if-no-files-found: ignore
