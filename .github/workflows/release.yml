@@ -92,6 +92,8 @@ jobs:
           $PSNativeCommandUseErrorActionPreference = $savedNativePreference
           $ErrorActionPreference = $savedErrorPreference
           Write-Host "git apply --reject exit code: $applyCode (expected when published v1.0.2 already contains a hunk; verification gates follow)"
+          # v1.0.3 regression-test corrections are stored explicitly and checksum-gated.
+          Copy-Item -LiteralPath v103_overlay\test_v103_unit.py -Destination src\tests\test_v103_unit.py -Force
           $expected = Get-Content v103_overlay\expected_runtime.json -Raw | ConvertFrom-Json
           if ($expected.version -ne $env:VERSION) { throw 'Expected-runtime manifest version mismatch' }
           $mismatches = @()
