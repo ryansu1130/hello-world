@@ -1,16 +1,15 @@
-# Ah Pa Ta Tracker v1.0.4 — Apple Account workflow, jobs and proxy management
+# Ah Pa Ta Tracker v1.0.5 — Apple Account sign-in and workflow recovery
 
-- Fixes the Apple Account connection handoff that could leave v1.0.3 sitting on Apple's guest **Find your order** page. The tracker now selects an explicit Apple Account sign-in branch when Apple exposes one, waits for Apple's own password/passkey/2FA flow, probes saved sessions, and does not mark the guest page as authenticated.
-- Simplifies Apple order actions to **select orders → choose action → START**, with a connected Apple Account required before queueing authenticated work and frozen target IDs at confirmation.
-- Preserves order selection by stable IDs across refresh/sort/filter operations and adds Shift-click range selection in order tables.
-- Expands the Proxies tab with Add, Edit, Delete selected, Delete all, Enable/Disable, Select all, Clear selection, Save and exact **Test Selected (N)** controls.
-- Adds controlled proxy failover for transport/proxy failures before a mutation is submitted. Explicit Apple 429/throttling still uses cooldown/backoff and never rotates routes to bypass the throttle.
-- Adds Jobs/results cleanup: Remove selected, Remove completed and guarded Stop-and-Remove. Removing a job only archives local history; it does not reverse completed Apple actions, and audit/task records remain available.
-- Enlarges Apple batch review/mapping/detail dialogs and improves column sizing so important order information is visible without needless horizontal scrolling.
-- Treats already-associated orders idempotently and keeps expected failures—session expiry, missing phones, ineligibility, timeouts, transport errors, throttling and uncertain mutations—as recoverable job outcomes instead of application crashes.
-- Retains the existing authenticated Apple observation precedence below manual overrides and above email/carrier sources.
-- Keeps Apple passwords, passkeys, 2FA codes and raw payment credentials on Apple's visible page. Cancellation/payment remain guarded browser-assisted operations with post-action reconciliation.
+- Separates Apple Account sign-in, password/passkey challenges, Apple 2FA, page-loading delays, and guest Find Your Order from real verified account state.
+- Opens the dedicated Apple Account sign-in branch from guest lookup instead of waiting indefinitely on a guest-order spinner.
+- Detects Apple-hosted embedded verification controls without reading any form field values.
+- Verifies a signed-in Apple order listing and the selected Apple Account identity before permitting authenticated order actions; unknown and mismatched states remain blocked.
+- Adds clearer Open Apple Account Sign-in, Open Order Listing, Check Session, Reconnect, Cancel Connection and Forget Saved Session controls, with browser-close recovery.
+- Continues checking sign-in while another tracker tab is visible.
+- Adds explicit Test All Enabled Proxies (without silently falling back to Direct), and Clear Finished Job History with audit preservation.
+- Improves batch-review table sizing and responsive dialog behavior.
+- Preserves v1.0.4 JSON phone mapping, bulk START, account-evidence guards, proxy CRUD, selected route tests, cooldowns, verified/uncertain action semantics, jobs, Gmail sync, UPS tracking, status priorities and native OTA launcher.
 
 ## Verification boundary
 
-The release workflow runs offline core tests, Windows Qt GUI checks and controlled browser-DOM scenarios before building/publishing. Private Apple production pages, a real user sign-in/2FA session, association of an owned guest order, real cancellation and real payment changes cannot be exercised by CI and require user validation. Unknown Apple layouts pause for handoff rather than being reported as success. Start with one owned order before authorizing a large batch.
+The release pipeline runs 236 offline core checks plus Windows Qt tests and 16 controlled Chromium DOM scenarios. Controlled fixtures are NOT Apple's production environment. Real Apple Account login, 2FA, association, cancellation, payment and order-status updates require manual validation by the user in their dedicated Apple browser. The app never collects passwords, 2FA codes or full card data.

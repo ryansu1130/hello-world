@@ -1,6 +1,32 @@
-# Ah Pa Ta Tracker v1.0.4
+# Ah Pa Ta Tracker v1.0.5
 
 Ah Pa Ta Tracker is a Windows Apple order tracker with Gmail import, local SQLite storage, UPS tracking, manual overrides, Apple Account browser-assisted workflows, phone mapping, proxy management, durable Apple jobs and built-in GitHub Release updates.
+
+## v1.0.5 Apple Account connection recovery
+
+The Apple Account workspace now distinguishes a guest **Find your order** page
+from Apple's actual account sign-in, password/passkey/2FA challenges, and a
+signed-in order listing. `Connected` requires verified account/order-list
+conditions: a browser opening by itself never counts as authenticated.
+
+To complete a real sign-in on Windows, open **Apple Account → Connection**,
+select the owned Apple Account and click **Connect Apple Account**. If Apple
+shows **Find your order**, click **Open Apple Account Sign-in**. Complete Apple's
+login and any verification in the **dedicated** browser (not in this app).
+Then click **Open Order Listing** or **Check Session**. If the account identity
+is hidden, explicitly confirm the visible signed-in Apple Account; a mismatched
+visible identity always blocks jobs. Use **Reconnect**, **Cancel connection**,
+or **Forget saved session** as appropriate. Start with one owned order.
+
+**Live-production boundary:** A real Apple login, live order association,
+status refresh, cancellation and payment changes cannot be validated using
+isolated CI fixtures. No such production success is claimed until verified
+by the user. The new 236-unit test and 16-browser-scenario gate, together with
+Windows GUI checks, cover the application contracts and error handling only.
+
+The release also adds explicit **Test All Enabled** proxy testing, a guarded
+**Clear finished history** control (audit retained), improved connection
+feedback across tabs and a more adaptive Apple batch review dialog.
 
 ## v1.0.4 production-readiness update
 
@@ -60,4 +86,4 @@ The Windows release workflow reconstructs the stable source, applies the version
 
 ## Local build
 
-On Windows run `build_windows.bat`. It runs the configured validation gates and creates `dist\AhPaTaTracker.exe`. Normal users should use **Check for Updates** after v1.0.4 is published.
+On Windows run `build_windows.bat`. It runs the configured validation gates and creates `dist\AhPaTaTracker.exe`. Normal users should use **Check for Updates** after v1.0.5 is published.

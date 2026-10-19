@@ -1,0 +1,211 @@
+name: Validate Windows release candidate
+
+on:
+  push:
+    branches: [v105-candidate]
+    paths:
+      - version.json
+      - source_bundle/**
+      - v103_overlay/**
+      - v104_overlay/**
+      - .github/workflows/release.yml
+      - release_notes.md
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ahpata-v105-candidate
+  cancel-in-progress: true
+
+jobs:
+  build-release:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out exact release source
+        uses: actions/checkout@v4
+
+      - name: Read release version
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $v = (Get-Content version.json -Raw | ConvertFrom-Json).version
+          if ($v -notmatch '^\d+\.\d+\.\d+$') { throw 'Invalid release version' }
+          "VERSION=$v" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Reconstruct and verify exact v1.0.5 source
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $m = Get-Content source_bundle\manifest.json -Raw | ConvertFrom-Json
+          if ($m.encoding -ne 'base64' -or $m.parts -lt 1 -or $m.parts -gt 200) { throw 'Invalid source manifest' }
+          if ($m.archive -ne "AhPaTaTracker_source_v$env:VERSION.zip") { throw 'Source archive version mismatch' }
+          $parts = @(Get-ChildItem source_bundle\part*.b64 | Sort-Object Name)
+          if ($parts.Count -ne [int]$m.parts) { throw 'Source part count mismatch' }
+          $joined = ''
+          for ($i=0; $i -lt $m.parts; $i++) {
+            $expected = ('part{0:D3}.b64' -f $i)
+            if ($parts[$i].Name -ne $expected) { throw 'Missing or unordered source part' }
+            $joined += Get-Content $parts[$i].FullName -Raw
+          }
+          $bytes = [Convert]::FromBase64String($joined)
+          $zip = Join-Path $env:RUNNER_TEMP $m.archive
+          [IO.File]::WriteAllBytes($zip,$bytes)
+          if ((Get-FileHash $zip -Algorithm SHA256).Hash.ToLower() -ne $m.sha256.ToLower()) { throw 'Exact source SHA-256 mismatch' }
+          New-Item -ItemType Directory -Force -Path src | Out-Null
+          Expand-Archive -LiteralPath $zip -DestinationPath src -Force
+          if ((Get-Content src\version.json -Raw | ConvertFrom-Json).version -ne $env:VERSION) { throw 'Source version mismatch' }
+          foreach ($file in @('AppleOrderTracker.py','apple_auth.py','apple_browser.py','apple_jobs.py','apple_account_ui.py','tests\test_v105_unit.py','tests\gui_v105_smoke.py','tests\browser_suite.py','launcher\Program.cs')) {
+            if (-not (Test-Path -LiteralPath (Join-Path src $file))) { throw "Missing required source file: $file" }
+          }
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: src/requirements.txt
+
+      - name: Install dependencies
+        working-directory: src
+        run: python -m pip install -r requirements.txt
+
+      - name: Run offline core tests
+        working-directory: src
+        shell: pwsh
+        run: |
+          python -m unittest discover -s tests -p "test_*.py" -v *> core_check.log
+          $code = $LASTEXITCODE
+          Get-Content core_check.log
+          if ($code -ne 0) { exit $code }
+
+      - name: Run existing tracker Qt checks
+        working-directory: src
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Remove-Item gui_check.log,gui_suite.out,gui_suite.err -ErrorAction SilentlyContinue
+          $p = Start-Process -FilePath python -ArgumentList @('tests/gui_smoke.py') -NoNewWindow -PassThru -RedirectStandardOutput gui_suite.out -RedirectStandardError gui_suite.err
+          if (-not $p.WaitForExit(180000)) {
+            try { $p.Kill($true) } catch {}
+            if (Test-Path gui_suite.out) { Get-Content gui_suite.out | Tee-Object -FilePath gui_check.log -Append }
+            if (Test-Path gui_suite.err) { Get-Content gui_suite.err | Tee-Object -FilePath gui_check.log -Append }
+            throw 'Full GUITests suite exceeded 180 seconds'
+          }
+          if (Test-Path gui_suite.out) { Get-Content gui_suite.out | Tee-Object -FilePath gui_check.log -Append }
+          if (Test-Path gui_suite.err) { Get-Content gui_suite.err | Tee-Object -FilePath gui_check.log -Append }
+          if ($p.ExitCode -ne 0) { throw "Full GUITests suite failed with exit code $($p.ExitCode)" }
+
+      - name: Run Apple workspace Qt checks
+        working-directory: src
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          python tests/gui_apple_smoke.py *> apple_gui_check.log
+          $code = $LASTEXITCODE
+          Get-Content apple_gui_check.log
+          if ($code -ne 0) { exit $code }
+
+      - name: Run v1.0.3 Qt checks
+        working-directory: src
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          python tests/gui_v103_smoke.py *> v103_gui_check.log
+          $code = $LASTEXITCODE
+          Get-Content v103_gui_check.log
+          if ($code -ne 0) { exit $code }
+
+      - name: Run v1.0.4 Qt checks
+        working-directory: src
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          python tests/gui_v104_smoke.py *> v104_gui_check.log
+          $code = $LASTEXITCODE
+          Get-Content v104_gui_check.log
+          if ($code -ne 0) { exit $code }
+
+      - name: Run v1.0.5 Qt checks
+        working-directory: src
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          python tests/gui_v105_smoke.py *> v105_gui_check.log
+          $code = $LASTEXITCODE
+          Get-Content v105_gui_check.log
+          if ($code -ne 0) { exit $code }
+
+
+      - name: Run controlled browser DOM checks (no Apple requests)
+        working-directory: src
+        shell: pwsh
+        run: |
+          python tests/browser_suite.py *> browser_check.log
+          $code = $LASTEXITCODE
+          Get-Content browser_check.log
+          if ($code -ne 0) { exit $code }
+
+      - name: Build PyInstaller payload
+        working-directory: src
+        shell: pwsh
+        run: |
+          python -m PyInstaller --noconfirm --clean --onefile --windowed `
+            --exclude-module PySide6.QtWebEngineCore `
+            --exclude-module PySide6.QtWebEngineWidgets `
+            --collect-all keyring --collect-all playwright `
+            --icon="app_icon.ico" --add-data "app_icon.ico;." `
+            --name AhPaTaTrackerApp AppleOrderTracker.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Build and verify persistent native launcher
+        working-directory: src
+        shell: pwsh
+        run: |
+          python tools/build_native_launcher.py `
+            --source launcher/Program.cs `
+            --payload dist/AhPaTaTrackerApp.exe `
+            --output dist/AhPaTaTracker.exe `
+            --version $env:VERSION `
+            --icon app_icon.ico
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python tools/verify_native_launcher.py dist/AhPaTaTracker.exe --version $env:VERSION
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Generate SHA-256
+        working-directory: src
+        shell: pwsh
+        run: |
+          $h = (Get-FileHash dist\AhPaTaTracker.exe -Algorithm SHA256).Hash.ToLower()
+          "$h  AhPaTaTracker.exe" | Out-File dist\AhPaTaTracker.exe.sha256 -Encoding ascii -NoNewline
+
+      - name: Retain candidate EXE and checksum
+        uses: actions/upload-artifact@v4
+        with:
+          name: ahpata-v105-candidate-exe
+          path: |
+            src/dist/AhPaTaTracker.exe
+            src/dist/AhPaTaTracker.exe.sha256
+          if-no-files-found: error
+
+      - name: Retain CI diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: validation-${{ env.VERSION }}
+          path: |
+            src/*_check.log
+            src/v103_light.png
+            src/v103_dark.png
+            src/v104_light.png
+            src/v104_dark.png
+            src/v105_gui_check.log
+          if-no-files-found: ignore
