@@ -1,0 +1,35 @@
+name: Export exact v1.0.4 source for review
+on:
+  push:
+    branches: [source-export-v104]
+    paths:
+      - .github/workflows/export-source.yml
+  workflow_dispatch:
+jobs:
+  export:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    env:
+      VERSION: 1.0.4
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Reconstruct released source with existing validated workflow
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          python -m pip install --disable-pip-version-check pyyaml
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot load YAML parser' }
+          python -c "import yaml,pathlib; d=yaml.safe_load(pathlib.Path('.github/workflows/release.yml').read_text()); print(next(s['run'] for s in d['jobs']['build-release']['steps'] if s.get('name')=='Reconstruct and verify source bundle'))" | Set-Content reconstruct.ps1 -Encoding utf8
+          pwsh -NoProfile -File reconstruct.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'Source reconstruction failed' }
+          if ((Get-Content src/version.json -Raw | ConvertFrom-Json).version -ne '1.0.4') { throw 'Wrong source version' }
+      - name: Upload complete source snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: ahpata-v104-full-source
+          path: src/
+          if-no-files-found: error
+          retention-days: 7
